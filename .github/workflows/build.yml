@@ -1,0 +1,63 @@
+# Nome del workflow che apparira' nella scheda Actions
+name: Compila APK IronTrack
+
+# Avvia la compilazione ad ogni modifica sul branch principale o manualmente
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build_apk:
+    # Usa una macchina virtuale Linux gratuita di GitHub
+    runs-on: ubuntu-latest
+
+    steps:
+      # Scarica i file del tuo repository
+      - name: Scarica il codice del repository
+        uses: actions/checkout@v4
+
+      # Installa Java 17 richiesto da Gradle/Android
+      - name: Configura Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Installa Flutter stabile 3.27.4
+      - name: Configura Flutter 3.27.4
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.4'
+          channel: 'stable'
+          cache: true
+
+      # Crea la cartella android e copia dentro le tue configurazioni personalizzate
+      - name: Genera impalcatura Android e applica configurazioni personalizzate
+        run: |
+          flutter create --platforms=android --org com.irontrack --project-name irontrack .
+          cp android_config/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp android_config/build.gradle android/app/build.gradle
+          mkdir -p android/app/src/main/kotlin/com/irontrack/irontrack
+          cp android_config/MainActivity.kt android/app/src/main/kotlin/com/irontrack/irontrack/MainActivity.kt
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android_config/res/drawable/ic_launcher_background.xml android/app/src/main/res/drawable/
+          cp android_config/res/drawable/ic_launcher_foreground.xml android/app/src/main/res/drawable/
+          cp android_config/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/
+
+      # Scarica le librerie definite in pubspec.yaml
+      - name: Installa dipendenze Dart/Flutter
+        run: flutter pub get
+
+      # Compila l'APK finale pronto per il telefono
+      - name: Compila APK Release
+        run: flutter build apk --release
+
+      # Rende l'APK scaricabile nella sezione Artifacts
+      - name: Carica APK scaricabile
+        uses: actions/upload-artifact@v4
+        with:
+          name: IronTrack-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
