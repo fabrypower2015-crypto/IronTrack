@@ -32,9 +32,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # Crea la cartella android e copia dentro le tue configurazioni personalizzate
+      # Entra nella cartella irontrack, genera la parte Android e copia le configurazioni
       - name: Genera impalcatura Android e applica configurazioni personalizzate
         run: |
+          cd irontrack
           flutter create --platforms=android --org com.irontrack --project-name irontrack .
           cp android_config/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp android_config/build.gradle android/app/build.gradle
@@ -46,18 +47,22 @@ jobs:
           cp android_config/res/drawable/ic_launcher_foreground.xml android/app/src/main/res/drawable/
           cp android_config/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/
 
-      # Scarica le librerie definite in pubspec.yaml
+      # Scarica le librerie dalla cartella irontrack
       - name: Installa dipendenze Dart/Flutter
-        run: flutter pub get
+        run: |
+          cd irontrack
+          flutter pub get
 
-      # Compila l'APK finale pronto per il telefono
+      # Compila l'APK release dalla cartella irontrack
       - name: Compila APK Release
-        run: flutter build apk --release
+        run: |
+          cd irontrack
+          flutter build apk --release
 
-      # Rende l'APK scaricabile nella sezione Artifacts
+      # Carica l'APK generato dentro la sottocartella irontrack
       - name: Carica APK scaricabile
         uses: actions/upload-artifact@v4
         with:
           name: IronTrack-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: irontrack/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
