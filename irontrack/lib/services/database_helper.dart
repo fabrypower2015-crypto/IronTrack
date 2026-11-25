@@ -386,51 +386,60 @@ class DatabaseHelper {
 
   Future<List<WorkoutSession>> _hydrateWorkouts(
     Database db,
-    List> workoutRows,
+    List> rows,
   ) async {
-    if (workoutRows.isEmpty) return [];
+    if (rows.isEmpty) {
+      return <WorkoutSession>[];
+    }
 
-    final workoutIds = workoutRows.map((e) => e['id'] as int).toList();
-    final placeholders = List.filled(workoutIds.length, '?').join(',');
+    final List<int> workoutIds =
+        rows.map<int>((Map<String, dynamic> e) => e['id'] as int).toList();
+    final String placeholders =
+        List<String>.filled(workoutIds.length, '?').join(',');
 
-    final weRows = await db.query(
+    final List> weRows = await db.query(
       'workout_exercises',
       where: 'workout_id IN ($placeholders)',
       whereArgs: workoutIds,
       orderBy: 'order_index ASC',
     );
 
-    final weIds = weRows.map((e) => e['id'] as int).toList();
-    final Map<int, List<WorkoutSet>> setsByWe = {};
+    final List<int> weIds =
+        weRows.map<int>((Map<String, dynamic> e) => e['id'] as int).toList();
+    final Map<int, List<WorkoutSet>> setsByWe = <int, List<WorkoutSet>>{};
 
     if (weIds.isNotEmpty) {
-      final setPlaceholders = List.filled(weIds.length, '?').join(',');
-      final setRows = await db.query(
+      final String setPlaceholders =
+          List<String>.filled(weIds.length, '?').join(',');
+      final List> setRows = await db.query(
         'workout_sets',
         where: 'workout_exercise_id IN ($setPlaceholders)',
         whereArgs: weIds,
         orderBy: 'set_number ASC',
       );
-      for (final sRow in setRows) {
-        final s = WorkoutSet.fromMap(sRow);
-        setsByWe.putIfAbsent(s.workoutExerciseId, () => []).add(s);
+      for (final Map<String, dynamic> sRow in setRows) {
+        final WorkoutSet s = WorkoutSet.fromMap(sRow);
+        setsByWe.putIfAbsent(s.workoutExerciseId, () => <WorkoutSet>[]).add(s);
       }
     }
 
-    final Map<int, List<WorkoutExerciseLog>> weByWorkout = {};
-    for (final weRow in weRows) {
-      final weId = weRow['id'] as int;
-      final log = WorkoutExerciseLog.fromMap(
+    final Map<int, List<WorkoutExerciseLog>> weByWorkout =
+        <int, List<WorkoutExerciseLog>>{};
+    for (final Map<String, dynamic> weRow in weRows) {
+      final int weId = weRow['id'] as int;
+      final WorkoutExerciseLog log = WorkoutExerciseLog.fromMap(
         weRow,
-        sets: setsByWe[weId] ?? const [],
+        sets: setsByWe[weId] ?? const <WorkoutSet>[],
       );
-      weByWorkout.putIfAbsent(log.workoutId, () => []).add(log);
+      weByWorkout
+          .putIfAbsent(log.workoutId, () => <WorkoutExerciseLog>[])
+          .add(log);
     }
 
-    return workoutRows
-        .map((w) => WorkoutSession.fromMap(
+    return rows
+        .map<WorkoutSession>((Map<String, dynamic> w) => WorkoutSession.fromMap(
               w,
-              exercises: weByWorkout[w['id'] as int] ?? const [],
+              exercises: weByWorkout[w['id'] as int] ?? const <WorkoutExerciseLog>[],
             ))
         .toList();
   }
