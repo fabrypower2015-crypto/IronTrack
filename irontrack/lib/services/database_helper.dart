@@ -5,7 +5,7 @@ import 'package:sqflite/sqflite.dart';
 import '../data/seed_exercises.dart';
 import '../models/models.dart';
 
-/// Gestore SQLite locale con singleton, integrità referenziale,
+/// Gestore SQLite locale con singleton, integrita' referenziale,
 /// autosalvataggio sessioni live ed esportazione/importazione backup.
 class DatabaseHelper {
   DatabaseHelper._();
@@ -30,7 +30,6 @@ class DatabaseHelper {
       fullPath,
       version: _dbVersion,
       onConfigure: (db) async {
-        // Abilita le chiavi esterne per garantire ON DELETE CASCADE
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: _onCreate,
@@ -38,7 +37,6 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // 1. Profilo utente e preferenze
     await db.execute('''
       CREATE TABLE user_profile (
         id INTEGER PRIMARY KEY,
@@ -60,7 +58,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 2. Libreria esercizi
     await db.execute('''
       CREATE TABLE exercises (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +69,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 3. Schede / Routine
     await db.execute('''
       CREATE TABLE routines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,7 +79,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 4. Esercizi associati alle schede
     await db.execute('''
       CREATE TABLE routine_exercises (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +94,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 5. Sessioni di allenamento (attive is_completed=0, salvate is_completed=1)
     await db.execute('''
       CREATE TABLE workouts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +107,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 6. Esercizi svolti in una sessione
     await db.execute('''
       CREATE TABLE workout_exercises (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,7 +120,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 7. Singole serie di ogni esercizio nella sessione
     await db.execute('''
       CREATE TABLE workout_sets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,7 +135,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 8. Misure corporee e peso
     await db.execute('''
       CREATE TABLE body_measurements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,7 +154,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 9. Foto progressi
     await db.execute('''
       CREATE TABLE progress_photos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -175,7 +165,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // 10. Obiettivi personali
     await db.execute('''
       CREATE TABLE goals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -192,17 +181,14 @@ class DatabaseHelper {
       )
     ''');
 
-    // Indici per velocizzare ricerche, grafici e storico
     await db.execute('CREATE INDEX idx_workouts_completed ON workouts(is_completed, started_at)');
     await db.execute('CREATE INDEX idx_we_workout ON workout_exercises(workout_id)');
     await db.execute('CREATE INDEX idx_we_exercise ON workout_exercises(exercise_id)');
     await db.execute('CREATE INDEX idx_ws_we ON workout_sets(workout_exercise_id)');
 
-    // Popolamento iniziale
     await _seedInitialData(db);
   }
 
-  /// Inserisce profilo di default, i 108 esercizi e le 6 schede template.
   Future<void> _seedInitialData(Database db) async {
     await db.insert('user_profile', const UserProfile().toMap());
 
@@ -244,8 +230,6 @@ class DatabaseHelper {
     }
   }
 
-  // ==================== PROFILO UTENTE ====================
-
   Future<UserProfile> getUserProfile() async {
     final db = await database;
     final rows = await db.query('user_profile', where: 'id = 1', limit: 1);
@@ -265,8 +249,6 @@ class DatabaseHelper {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
-
-  // ==================== ESERCIZI ====================
 
   Future<List<Exercise>> getAllExercises() async {
     final db = await database;
@@ -293,8 +275,6 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('exercises', where: 'id = ?', whereArgs: [id]);
   }
-
-  // ==================== SCHEDE / ROUTINE ====================
 
   Future<List<Routine>> getAllRoutines() async {
     final db = await database;
@@ -357,9 +337,6 @@ class DatabaseHelper {
     await db.delete('routines', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==================== ALLENAMENTI & SESSIONE LIVE ====================
-
-  /// Recupera tutti gli allenamenti completati con esercizi e serie.
   Future<List<WorkoutSession>> getCompletedWorkouts() async {
     final db = await database;
     final rows = await db.query(
@@ -370,7 +347,6 @@ class DatabaseHelper {
     return _hydrateWorkouts(db, rows);
   }
 
-  /// Recupera eventuale sessione attiva non conclusa (autosalvataggio).
   Future<WorkoutSession?> getActiveWorkout() async {
     final db = await database;
     final rows = await db.query(
@@ -386,66 +362,59 @@ class DatabaseHelper {
 
   Future<List<WorkoutSession>> _hydrateWorkouts(
     Database db,
-    List> rows,
+    List rows,
   ) async {
     if (rows.isEmpty) {
-      return <WorkoutSession>[];
+      return [];
     }
 
-    final List<int> workoutIds =
-        rows.map<int>((Map<String, dynamic> e) => e['id'] as int).toList();
-    final String placeholders =
-        List<String>.filled(workoutIds.length, '?').join(',');
+    final workoutIds = rows.map((e) => e['id'] as int).toList();
+    final placeholders = List.filled(workoutIds.length, '?').join(',');
 
-    final List> weRows = await db.query(
+    final weRows = await db.query(
       'workout_exercises',
       where: 'workout_id IN ($placeholders)',
       whereArgs: workoutIds,
       orderBy: 'order_index ASC',
     );
 
-    final List<int> weIds =
-        weRows.map<int>((Map<String, dynamic> e) => e['id'] as int).toList();
-    final Map<int, List<WorkoutSet>> setsByWe = <int, List<WorkoutSet>>{};
+    final weIds = weRows.map((e) => e['id'] as int).toList();
+    final Map<int, List<WorkoutSet>> setsByWe = {};
 
     if (weIds.isNotEmpty) {
-      final String setPlaceholders =
-          List<String>.filled(weIds.length, '?').join(',');
-      final List> setRows = await db.query(
+      final setPlaceholders = List.filled(weIds.length, '?').join(',');
+      final setRows = await db.query(
         'workout_sets',
         where: 'workout_exercise_id IN ($setPlaceholders)',
         whereArgs: weIds,
         orderBy: 'set_number ASC',
       );
-      for (final Map<String, dynamic> sRow in setRows) {
-        final WorkoutSet s = WorkoutSet.fromMap(sRow);
-        setsByWe.putIfAbsent(s.workoutExerciseId, () => <WorkoutSet>[]).add(s);
+      for (final sRow in setRows) {
+        final s = WorkoutSet.fromMap(
+          Map<String, dynamic>.from(sRow),
+        );
+        setsByWe.putIfAbsent(s.workoutExerciseId, () => []).add(s);
       }
     }
 
-    final Map<int, List<WorkoutExerciseLog>> weByWorkout =
-        <int, List<WorkoutExerciseLog>>{};
-    for (final Map<String, dynamic> weRow in weRows) {
-      final int weId = weRow['id'] as int;
-      final WorkoutExerciseLog log = WorkoutExerciseLog.fromMap(
-        weRow,
-        sets: setsByWe[weId] ?? const <WorkoutSet>[],
+    final Map<int, List<WorkoutExerciseLog>> weByWorkout = {};
+    for (final weRow in weRows) {
+      final weId = weRow['id'] as int;
+      final log = WorkoutExerciseLog.fromMap(
+        Map<String, dynamic>.from(weRow),
+        sets: setsByWe[weId] ?? const [],
       );
-      weByWorkout
-          .putIfAbsent(log.workoutId, () => <WorkoutExerciseLog>[])
-          .add(log);
+      weByWorkout.putIfAbsent(log.workoutId, () => []).add(log);
     }
 
     return rows
-        .map<WorkoutSession>((Map<String, dynamic> w) => WorkoutSession.fromMap(
-              w,
-              exercises: weByWorkout[w['id'] as int] ?? const <WorkoutExerciseLog>[],
+        .map((w) => WorkoutSession.fromMap(
+              Map<String, dynamic>.from(w),
+              exercises: weByWorkout[w['id'] as int] ?? const [],
             ))
         .toList();
   }
 
-  /// Salva l'intera sessione (nuova o esistente) in una transazione atomica.
-  /// Usato sia per l'autosalvataggio live sia per la modifica dallo storico.
   Future<WorkoutSession> saveWorkoutSession(WorkoutSession session) async {
     final db = await database;
     final savedId = await db.transaction((txn) async {
@@ -504,7 +473,6 @@ class DatabaseHelper {
     await db.delete('workouts', where: 'id = ?', whereArgs: [id]);
   }
 
-  /// Restituisce le serie completate dell'ultima sessione in cui è stato eseguito [exerciseId].
   Future<List<WorkoutSet>> getLastCompletedSetsForExercise(int exerciseId) async {
     final db = await database;
     final rows = await db.rawQuery('''
@@ -526,8 +494,6 @@ class DatabaseHelper {
     );
     return setRows.map(WorkoutSet.fromMap).toList();
   }
-
-  // ==================== MISURE CORPOREE ====================
 
   Future<List<BodyMeasurement>> getAllBodyMeasurements() async {
     final db = await database;
@@ -554,8 +520,6 @@ class DatabaseHelper {
     await db.delete('body_measurements', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==================== FOTO PROGRESSI ====================
-
   Future<List<ProgressPhoto>> getAllProgressPhotos() async {
     final db = await database;
     final rows = await db.query('progress_photos', orderBy: 'date DESC');
@@ -571,8 +535,6 @@ class DatabaseHelper {
     final db = await database;
     await db.delete('progress_photos', where: 'id = ?', whereArgs: [id]);
   }
-
-  // ==================== OBIETTIVI ====================
 
   Future<List<FitnessGoal>> getAllGoals() async {
     final db = await database;
@@ -599,9 +561,6 @@ class DatabaseHelper {
     await db.delete('goals', where: 'id = ?', whereArgs: [id]);
   }
 
-  // ==================== BACKUP JSON & EXPORT CSV ====================
-
-  /// Esporta l'intero database in formato JSON leggibile e ripristinabile.
   Future<String> exportFullBackupJson() async {
     final db = await database;
     final payload = <String, dynamic>{
@@ -622,7 +581,6 @@ class DatabaseHelper {
     return const JsonEncoder.withIndent('  ').convert(payload);
   }
 
-  /// Ripristina un backup JSON completo sostituendo i dati correnti in transazione.
   Future<void> importFullBackupJson(String jsonContent) async {
     final decoded = jsonDecode(jsonContent);
     if (decoded is! Map<String, dynamic> || decoded['app'] != 'IronTrack') {
@@ -631,7 +589,6 @@ class DatabaseHelper {
 
     final db = await database;
     await db.transaction((txn) async {
-      // Elimina in ordine inverso per rispettare le chiavi esterne
       await txn.delete('workout_sets');
       await txn.delete('workout_exercises');
       await txn.delete('workouts');
@@ -671,7 +628,6 @@ class DatabaseHelper {
     });
   }
 
-  /// Esporta tutte le serie degli allenamenti completati in formato CSV compatibile con Excel.
   Future<String> exportWorkoutsCsv() async {
     final db = await database;
     final rows = await db.rawQuery('''
